@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Vollpfosten PWA</title>
+    <link rel="manifest" href="manifest.json">
+    <style>
+        :root {
+            --orange: #FF7000;
+            --dark: #2C2C2C;
+            --bg: #FFF3E8;
+        }
+        body {
+            margin: 0; padding: 0; background-color: var(--bg);
+            font-family: 'Arial Black', sans-serif;
+            overflow: hidden; touch-action: none;
+            display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh;
+        }
+        
+        /* Das Kartendeck */
+        #card-container {
+            position: relative;
+            width: 80vw;
+            height: 60vh;
+            perspective: 1000px;
+        }
+        
+        .card {
+            position: absolute; width: 100%; height: 100%;
+            background: var(--orange); color: white;
+            border-radius: 20px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 100px; font-weight: bold;
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2);
+            border: 8px solid white;
+            transition: transform 0.3s ease;
+            user-select: none;
+            /* Hintergrund-Muster Andeutung */
+            background-image: radial-gradient(circle, rgba(255,255,255,0.1) 10%, transparent 10%);
+            background-size: 20px 20px;
+        }
+
+        /* Animation in die Notch (Oben mittig) */
+        .card.swiped {
+            animation: suckIntoNotch 0.6s cubic-bezier(0.1, -0.6, 0.2, 0) forwards;
+        }
+
+        @keyframes suckIntoNotch {
+            to {
+                transform: translate(0, -60vh) scale(0.1);
+                opacity: 0;
+            }
+        }
+
+        /* Buttons unten */
+        .controls {
+            position: absolute; bottom: 5vh;
+            display: flex; gap: 20px;
+            width: 80vw; justify-content: space-between;
+        }
+        
+        button {
+            padding: 15px 20px; border: none; border-radius: 12px;
+            background: var(--dark); color: white; font-size: 18px; font-weight: bold;
+            box-shadow: 0 5px 10px rgba(0,0,0,0.2);
+        }
+        button:active { transform: scale(0.95); }
+    </style>
+</head>
+<body>
+
+    <div id="card-container"></div>
+
+    <div class="controls">
+        <button id="btn-undo">↩ Zurück</button>
+        <button id="btn-draw">+1 Karte</button>
+    </div>
+
+    <script>
+        // Service Worker registrieren (für Offline-Fähigkeit)
+        if ('serviceWorker' in navigator) {
+            navigator.serviceWorker.register('sw.js');
+        }
+
+        const lettersPool = ["A","B","D","E","F","G","H","I/V","J/C","K","L","M","N","O","P","Q","R","S","Sch/W","T","U","X/Y/Z"];
+        let hand = [];
+        let discarded = [];
+        const container = document.getElementById('card-container');
+
+        // Hand mit 6 zufälligen Karten füllen
+        function initHand() {
+            for(let i=0; i<6; i++) {
+                let randomLetter = lettersPool[Math.floor(Math.random() * lettersPool.length)];
+                hand.push(randomLetter);
+            }
+            renderCards();
+        }
+
+        function renderCards() {
+            container.innerHTML = '';
+            hand.forEach((letter, index) => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerText = letter;
+                // Leichte Drehung für den "Stapel"-Look
+                card.style.transform = `rotate(${Math.random() * 6 - 3}deg)`;
+                card.style.zIndex = index;
+                
+                // Swipe Logik auf der obersten Karte
+                if(index === hand.length - 1) {
+                    addSwipeLogic(card, letter);
+                }
+                
+                container.appendChild(card);
+            });
+        }
+
+        function addSwipeLogic(card, letter) {
+            let startY = 0;
+            let currentY = 0;
+
+            card.addEventListener('touchstart', (e) => {
+                startY = e.touches[0].clientY;
+            });
+
+            card.addEventListener('touchmove', (e) => {
+                currentY = e.touches[0].clientY;
+                let deltaY = currentY - startY;
+                if(deltaY < 0) { // Nur nach oben swipen erlauben
+                    card.style.transform = `translateY(${deltaY}px)`;
+                }
+            });
+
+            card.addEventListener('touchend', (e) => {
+                let deltaY = currentY - startY;
+                // Wenn weit genug geswiped wurde -> Weg damit
+                if(deltaY < -100) {
+                    card.classList.add('swiped');
+                    // Handy Vibrieren lassen (Haptic Feedback)
+                    if(navigator.vibrate) navigator.vibrate(50);
+                    
+                    setTimeout(() => {
+                        discarded.push(hand.pop());
+                        checkCardsLeft();
+                        renderCards();
+                    }, 600); // Warten bis Animation fertig ist
+                } else {
+                    // Zurückspringen lassen
+                    card.style.transform = `rotate(${Math.random() * 6 - 3}deg)`;
+                }
+            });
+        }
+
+        function checkCardsLeft() {
+            // Hier kommt später die Audio-Logik rein
+            if(hand.length === 3) console.log("Spiele 3.mp3 ab");
+            if(hand.length === 0) console.log("Spiele win.mp3 ab");
+        }
+
+        // Zurück-Button Logik
+        document.getElementById('btn-undo').addEventListener('click', () => {
+            if(discarded.length > 0) {
+                hand.push(discarded.pop());
+                renderCards();
+            }
+        });
+
+        // +1 Karte nachziehen
+        document.getElementById('btn-draw').addEventListener('click', () => {
+            let randomLetter = lettersPool[Math.floor(Math.random() * lettersPool.length)];
+            hand.push(randomLetter);
+            renderCards();
+        });
+
+        initHand();
+    </script>
+</body>
+</html>
