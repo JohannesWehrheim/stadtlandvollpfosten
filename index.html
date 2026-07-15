@@ -2,12 +2,13 @@
 <html lang="de">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
     <title>Stadt Land Vollpfosten PWA</title>
     <link rel="manifest" href="manifest.json">
     <style>
         :root {
             --orange: #FF7000;
+            --blue: #007AFF;
             --dark: #2C2C2C;
             --bg: #FFF3E8;
             --card-border: #FFFFFF;
@@ -15,225 +16,201 @@
         body {
             margin: 0; padding: 0; background-color: var(--bg);
             font-family: 'Arial Black', sans-serif;
-            overflow: hidden; touch-action: none; /* Verhindert systemweites Scrollen/Bouncen */
+            overflow: hidden; touch-action: none; 
             display: flex; flex-direction: column; align-items: center; height: 100vh; width: 100vw;
         }
 
-        /* --- CONTAINER --- */
+        /* --- GAME AREA --- */
         #game-area {
-            position: relative;
-            width: 100%;
-            height: 80vh;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            position: relative; width: 100%; height: 78vh;
+            display: flex; justify-content: center; align-items: center;
         }
 
-        /* --- VIEW: GRID (3x2 Raster) --- */
+        /* --- VIEW: GRID --- */
         .view-grid {
             display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            width: 90%;
-            max-height: 100%;
-            overflow-y: auto;
-            padding: 20px 0;
-            box-sizing: border-box;
+            grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+            gap: 15px; width: 92%; max-height: 100%;
+            overflow-y: auto; padding: 20px 0; align-content: start;
         }
         .view-grid .card {
-            position: relative;
-            width: 100%;
-            aspect-ratio: 2 / 3;
-            transform: none !important; /* Überschreibt die Fächer-Drehung */
+            position: relative; width: 100%; aspect-ratio: 2 / 3;
+            transform: none !important; margin: 0 auto;
         }
+        /* Ecken im Grid ausblenden */
+        .view-grid .corner { display: none; }
+        .view-grid .center-text { font-size: clamp(30px, 8vw, 60px); }
 
-        /* --- VIEW: FAN (Kartenhand Quer/Überlappend) --- */
+        /* --- VIEW: FAN --- */
         .view-fan {
-            position: relative;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            position: relative; width: 100%; height: 100%;
+            display: flex; justify-content: center; align-items: center;
         }
         .view-fan .card {
-            position: absolute;
-            width: 45%;
-            aspect-ratio: 2 / 3.2;
+            position: absolute; width: clamp(140px, 35vw, 220px); aspect-ratio: 2 / 3;
             transform-origin: bottom center;
-            box-shadow: -5px 0px 15px rgba(0,0,0,0.3);
+            box-shadow: -5px 0px 20px rgba(0,0,0,0.3);
         }
+        .view-fan .center-text { font-size: clamp(50px, 12vw, 90px); } /* Noch größer im Fächer */
 
-        /* --- DIE KARTE --- */
+        /* --- DIE KARTE (Allgemein) --- */
         .card {
-            background: var(--orange); 
-            color: white;
-            border-radius: 15px;
-            border: 6px solid var(--card-border);
-            box-shadow: 0 8px 15px rgba(0,0,0,0.2);
-            display: flex; 
-            align-items: center; 
-            justify-content: center;
-            font-size: clamp(30px, 8vw, 60px);
-            font-weight: bold;
-            letter-spacing: normal; /* Fixt das I/V Problem */
-            transition: transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s ease;
-            user-select: none;
-            /* Subtiles Muster im Hintergrund */
+            background: var(--orange); color: white;
+            border-radius: 15px; border: 6px solid var(--card-border);
+            display: flex; align-items: center; justify-content: center;
+            font-weight: bold; text-align: center; white-space: nowrap; /* Verhindert X/Y/Z Umbruch */
+            transition: transform 0.2s ease-out, opacity 0.3s ease;
+            user-select: none; touch-action: pan-y;
             background-image: radial-gradient(circle, rgba(255,255,255,0.15) 15%, transparent 15%);
-            background-size: 30px 30px;
-            touch-action: pan-y; /* Erlaubt vertikales Scrollen im Grid */
-            z-index: 10;
+            background-size: 30px 30px; z-index: 10;
         }
 
-        /* Karten-Ecken (nur im Fan-View wirklich wichtig, aber generell schick) */
+        /* Ecken */
         .corner {
-            position: absolute;
-            font-size: clamp(14px, 4vw, 24px);
-            font-weight: bold;
+            position: absolute; font-size: clamp(14px, 4vw, 20px); font-weight: bold;
         }
-        .corner-top-left { top: 8px; left: 8px; }
-        .corner-bottom-right { bottom: 8px; right: 8px; transform: rotate(180deg); }
+        .corner-top-left { top: 8px; left: 10px; }
+        .corner-bottom-right { bottom: 8px; right: 10px; transform: rotate(180deg); }
 
-        /* Animation beim Abwerfen */
+        /* Abwurf-Animation */
         .swiped-up {
             transform: translateY(-100vh) scale(0.5) !important;
-            opacity: 0;
-            pointer-events: none;
+            opacity: 0; pointer-events: none;
         }
 
-        /* --- KATEGORIE OVERLAY --- */
+        /* --- KATEGORIE & AKTIONS OVERLAY --- */
         #category-overlay {
             position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
-            background: rgba(0,0,0,0.85); z-index: 100;
+            background: rgba(0,0,0,0.9); z-index: 100;
             display: flex; flex-direction: column; justify-content: center; align-items: center;
             opacity: 0; pointer-events: none; transition: opacity 0.3s ease;
+            padding: 20px; box-sizing: border-box; overflow-y: auto;
         }
-        #category-overlay.active {
-            opacity: 1; pointer-events: all;
+        #category-overlay.active { opacity: 1; pointer-events: all; }
+        
+        .overlay-title { color: white; margin-bottom: 20px; font-size: 22px; text-transform: uppercase; text-align: center; }
+        
+        /* Grid für Kategorien (2x2) */
+        #cat-grid {
+            display: grid; grid-template-columns: 1fr 1fr; gap: 15px; width: 100%; max-width: 400px;
         }
-        .cat-title { color: white; margin-bottom: 30px; font-size: 24px; text-transform: uppercase; }
-        .cat-btn {
-            background: white; color: var(--dark);
-            width: 80%; padding: 20px; margin: 10px 0;
-            border-radius: 10px; font-size: 18px; font-weight: bold;
-            text-align: center; border: none; box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        
+        /* Kategorie Karte im Overlay */
+        .cat-card {
+            background: var(--orange); color: white;
+            border-radius: 12px; border: 4px solid white;
+            aspect-ratio: 1 / 1; display: flex; align-items: center; justify-content: center;
+            font-size: clamp(14px, 4vw, 20px); text-align: center; padding: 10px;
+            background-image: radial-gradient(circle, rgba(255,255,255,0.15) 15%, transparent 15%);
+            background-size: 20px 20px; box-shadow: 0 5px 15px rgba(0,0,0,0.4);
+            white-space: normal; /* Hier ist Umbruch erlaubt */
         }
-        .cat-btn:active { transform: scale(0.95); background: var(--orange); color: white; }
 
-        /* --- CONTROLS --- */
+        /* Blaue Aktionskarte */
+        .action-card {
+            background: var(--blue); width: 90%; max-width: 350px; aspect-ratio: 3 / 4;
+            font-size: clamp(20px, 6vw, 35px); display: none; /* Standardmäßig aus */
+        }
+
+        .overlay-controls {
+            display: flex; flex-direction: column; gap: 10px; width: 100%; max-width: 400px; margin-top: 30px;
+        }
+        .overlay-controls button {
+            padding: 15px; border-radius: 10px; font-size: 18px; width: 100%; background: white; color: var(--dark); border: none; font-weight: bold;
+        }
+        .overlay-controls button.primary { background: var(--orange); color: white; }
+        .overlay-controls button:active { transform: scale(0.95); }
+
+        /* --- MAIN CONTROLS (Unten) --- */
         .controls {
-            position: absolute; bottom: 3vh;
-            display: flex; gap: 15px;
-            width: 90%; justify-content: space-between;
+            position: absolute; bottom: 2vh;
+            display: flex; flex-wrap: wrap; gap: 10px;
+            width: 95%; justify-content: center;
         }
-        button {
-            padding: 15px; border: none; border-radius: 10px;
-            background: var(--dark); color: white; font-size: 16px; font-weight: bold;
-            box-shadow: 0 5px 10px rgba(0,0,0,0.2); flex: 1;
+        .controls button {
+            padding: 12px 10px; border: none; border-radius: 10px;
+            background: var(--dark); color: white; font-size: 14px; font-weight: bold;
+            box-shadow: 0 5px 10px rgba(0,0,0,0.2); flex: 1 1 22%; text-align: center;
         }
-        button:active { transform: scale(0.95); }
+        .controls button:active { transform: scale(0.95); }
 
     </style>
 </head>
 <body>
 
-    <div id="game-area" class="view-grid">
+    <div id="game-area" class="view-fan">
         </div>
 
     <div class="controls">
         <button id="btn-undo">↩ Zurück</button>
-        <button id="btn-view">Ansicht: Grid</button>
+        <button id="btn-view">Ansicht</button>
+        <button id="btn-cats">Kategorien</button>
         <button id="btn-draw">+1 Karte</button>
     </div>
 
     <div id="category-overlay">
-        <div class="cat-title">Wähle eine Kategorie</div>
-        <button class="cat-btn" id="cat-1">Kategorie 1</button>
-        <button class="cat-btn" id="cat-2">Kategorie 2</button>
-        <button class="cat-btn" id="cat-3">Kategorie 3</button>
-        <button class="cat-btn" id="cat-4">Kategorie 4</button>
+        <div class="overlay-title" id="overlay-title">Wähle eine Kategorie</div>
+        
+        <div id="cat-grid">
+            <div class="cat-card" id="cat-1"></div>
+            <div class="cat-card" id="cat-2"></div>
+            <div class="cat-card" id="cat-3"></div>
+            <div class="cat-card" id="cat-4"></div>
+        </div>
+
+        <div class="cat-card action-card" id="action-card-view">
+            Tauscht eure Handys im Uhrzeigersinn!
+        </div>
+
+        <div class="overlay-controls">
+            <button id="btn-new-cats">Neue ziehen</button>
+            <button class="primary" id="btn-close-cats">Weiter / Zum Spiel</button>
+        </div>
     </div>
 
     <script>
-        // Buchstaben Pool (mit Leerzeichen für bessere Lesbarkeit bei Doppelkarten)
         const lettersPool = ["A","B","D","E","F","G","H","I / V","J / C","K","L","M","N","O","P","Q","R","S","Sch / W","T","U","X / Y / Z"];
         
-        // Deine riesige Kategorien-Liste
+        // Aktionskarten Pool
+        const actionCards = [
+            "Tauscht eure Karten (Handys) im Uhrzeigersinn",
+            "Der Spieler links von dir zieht 2 extra Karten",
+            "Tausche dein Handy mit dem, der die wenigsten Karten hat",
+            "Tausch dein Handy mit dem, der die meisten Karten hat"
+        ];
+
+        // Gekürzte Liste fürs Beispiel (ersetze dies mit deiner langen Liste!)
         const categoriesPool = [
-            "Typisch Blau, Rot, …", "Gesellschaftsspiel", "Größer als ein Elefant", "Kleiner als ein Fußball", 
-            "Figur aus der Bibel", "Buch aus der Bibel", "Buchtitel", "Filmtitel", "Ewas weiches", "Etwas hartes", 
-            "Küchengerät", "Haushaltsgerät", "Ein Fußballer", "Ein Politiker", "Farbe", "Filmstar", "Typisch Deutsch", 
-            "Typisch Mann/ Frau", "aus meiner Gemeinde", "Name Rückwärts", "TV Serie", "Pizzabelag", "Stadt ab 1 Mio", 
-            "Sportart", "Stadt mit Flughafen", "Stadt im Ausland", "Stadt in Deutschland", "Toter", "Tier", "Säugetier", 
-            "Tier im Wasser", "Vogel", "Pflanze", "Gemüse", "Obst", "Gericht", "Gruppenspiel", "Automarke", 
-            "Fortbewegungsmittel", "Ort in deiner Stadt", "Fluggesellschaft", "Krieg", "Bekleidungsmarke", 
-            "Kleidungsstück", "Besucht man im Sommer", "Besucht man im Winter", "Besucht man am Strand", 
-            "Sportutensil", "Sport ohne Ball", "Männername", "Frauenname", "Restaurantname", "Getränk", "Biermarke", 
-            "Weinsorte", "Kostet unter 1€", "Kostet über 1000€", "Schulfach/Studienfach", "7 vs Wild Gegenstand", 
-            "Liedtitel", "Computerspiel", "Erfindung", "Grund für Verspätung", "Trennungsgrund", "Freizeitname", 
-            "Gefäß aus dem man trinken kann", "Gefäß aus dem man essen kann", "Baumart", "Pflanzenart", "Süßigkeit", 
-            "Geschichtliche Person", "Geschichtliches Ereignis", "Im Schlafzimmer", "In der Küche", "In der Garage", 
-            "In der Stadt", "Im Wohnzimmer", "Youtubestar", "Jugendwort", "Englisches Wort", "Spanisches Wort", 
-            "Französisches Wort", "Lateinisches Wort", "Im Weltraum", "Verbotenes Wort", "Schimpfwort", "In der Erde", 
-            "In der Luft", "Promi", "Gartenartikel", "US-Bundesstaat", "Bundesland", "Im Geldbeutel", "Körperteil", 
-            "Körperschmuck", "Am Kopf", "Uhrvogel", "berühmtes Bauwerk", "technisches Gerät", "Fußballverein", 
-            "Blume", "App", "Internetseite", "mit Anschaltknopf", "hängt an der Steckdose", "Im Möbelhaus", 
-            "Urlaubsort", "Am Körper", "Rudeltier", "Kinderspielzeug", "Kinderspiel", "Kinderlied", "Am Nachthimmel", 
-            "Sternzeichen", "im Krankenhaus", "in Herr der Ringe", "Im Architekturbüro", "In der Kanzlei", 
-            "In “The Chosen”", "Christliches Lied", "Musikrichtung", "Christliche Band", "Name eines Mitspielers", 
-            "altmodischer Name", "altmodischer Gegenstand", "Gegenstand aus der Steinzeit", "Gegenstand aus dem Mittelalter", 
-            "Komponist", "Name eines Lehrers", "Uhrenmarke", "Appleprodukt", "Samsungprodukt", "Schuhmarke", "Geruch", 
-            "Eissorte", "Kuchen", "ein Kunststoff", "aus Metall", "aus Plastik", "aus Stoff", "aus Holz", "Sprichwörter", 
-            "Dumme Sprüche", "Ein Witz", "Handymarke", "Computermarke", "Gebäudeart", "Schlafmöglichkeit", "Beim Campen", 
-            "Am Strand", "Im Dschungel", "In der Gemeinde", "aus Holz gefertigt", "Kniggeregeln", "Partei", "Trainer", 
-            "Tennisspieler", "Rennfahrer", "aus Starwars", "aus Marvel", "aus Fuck You Göhte", "auf dem Handy", 
-            "Haarfarbe", "Frisur", "Bartart", "Gesichtsbehaarung", "Behaarung", "In der Sauna", "hat einen Handgriff", 
-            "Dönerbelag", "Kommt Wasser raus", "Im Wald", "davor hat man Angst", "Grund zum Feiern", "Knochen", 
-            "Muskeln", "Lateinischer Fachbegriff", "stinkt", "ist witzig", "Grund zum Trauern", "etwas peinliches", 
-            "Kalendereintrag", "Buchstabe", "auf Instagram", "Influencer", "Insekt", "wirbellose Tiere", "Fischart", 
-            "Wal", "Schuhart", "Dekoartikel", "Lichtquelle", "auf einer Party", "Weihnachtslied", "Fastfoodkette", 
-            "Supermarkt", "Pc-Programm", "Historische Staaten", "Sehenswürdigkeit", "Hinter Gittern", "Im Zoo", 
-            "im Kindergarten", "Sucht / Laster", "mit Tastatur", "Sport mit einem Netz", "macht man zu zweit", 
-            "ist romantisch", "Ballart", "kann man schießen", "kann man werfen", "kann man rauchen", "Alkohol enthalten", 
-            "Musikinstrument", "beim Frühstück", "auf dem Tisch", "Verwandtschaft", "auf der Leinwand", "Kosenamen", 
-            "Duft", "hat einen Deckel", "hat 4 Räder", "hat 3 Räder", "ist eckig", "ist rund", "ist schwer", "ist leicht", 
-            "schmeckt süß", "schmeckt sauer", "schmeckt salzig", "Chipsart", "Gummibärchenart", "in der Apotheke", 
-            "dafür wird man gelobt", "dafür wird geschlagen", "dafür wird man gehasst", "kann man nicht kaufen", 
-            "kann man essen", "Unterlage", "Fluss", "Land", "Hauptstadt", "Berg", "Schokoladenart", "Schokoladenmarke", 
-            "Süßigkeitenmarke", "Schriftart", "Wörter ohne e", "Wort mit Doppel e", "Endung auf Heit", "Endung auf Ung", 
-            "Wort mit Doppel A", "Wort mit 3 s", "Wassermarke", "Jahreszahl", "Kopfbedeckung", "Schuhgröße", 
-            "Kleidungsgröße", "Währung", "Studiengang", "Gegenstand aus Glas", "Spielzeugfirma"
+            "Gesellschaftsspiel", "Figur aus der Bibel", "Buchtitel", "Filmtitel", "Küchengerät", "Ein Politiker", "Farbe", "Sportart", "Tier", "Automarke", "Sportutensil", "Getränk", "Schulfach", "Computerspiel", "Süßigkeit"
         ];
 
         let hand = [];
         let discarded = [];
-        let currentView = 'grid'; // 'grid' oder 'fan'
+        let currentView = 'fan'; // Startet als Fächer
+        let topZIndex = 100; // Variable, um angetippte Karten nach vorne zu holen
+
         const gameArea = document.getElementById('game-area');
         const viewBtn = document.getElementById('btn-view');
         const categoryOverlay = document.getElementById('category-overlay');
 
-        // Initialisierung
         function initHand() {
-            for(let i=0; i<6; i++) {
-                hand.push(getRandomLetter());
-            }
+            for(let i=0; i<6; i++) hand.push(getRandomLetter());
             renderCards();
         }
 
-        function getRandomLetter() {
-            return lettersPool[Math.floor(Math.random() * lettersPool.length)];
-        }
+        function getRandomLetter() { return lettersPool[Math.floor(Math.random() * lettersPool.length)]; }
 
-        // Karten zeichnen
         function renderCards() {
             gameArea.innerHTML = '';
             
+            // Fächer-Berechnung: Dynamischer Winkel, damit sie nicht aus dem Bildschirm ragen
+            let maxTotalAngle = 90; // Maximaler Winkel des kompletten Fächers
+            let angleStep = hand.length > 1 ? Math.min(18, maxTotalAngle / (hand.length - 1)) : 0;
+
             hand.forEach((letter, index) => {
                 const card = document.createElement('div');
                 card.className = 'card';
                 
-                // Für die Ecken: Nur den ersten Buchstaben nehmen bei Doppelkarten
                 let cornerLetter = letter.split('/')[0].trim();
 
                 card.innerHTML = `
@@ -242,45 +219,39 @@
                     <div class="corner corner-bottom-right">${cornerLetter}</div>
                 `;
 
-                // Layout Logik für den Fächer (Fan View)
                 if (currentView === 'fan') {
-                    // Berechne den Winkel basierend auf der Position in der Hand
                     let offset = index - (hand.length - 1) / 2;
-                    let angle = offset * 12; // Grad Drehung pro Karte
-                    let translateY = Math.abs(offset) * 10; // Leichter Bogen nach unten
+                    let angle = offset * angleStep; 
+                    let translateY = Math.abs(offset) * 8; // Leichter Bogen
                     card.style.transform = `rotate(${angle}deg) translateY(${translateY}px)`;
-                    card.style.zIndex = index;
+                    card.style.zIndex = topZIndex + index; // Initiale Sortierung
                 }
 
-                addSwipeLogic(card, index);
+                addCardLogic(card, index);
                 gameArea.appendChild(card);
             });
+            topZIndex += hand.length; // Vorbereiten für den nächsten Klick
         }
 
-        // Ansicht umschalten
         viewBtn.addEventListener('click', () => {
-            if (currentView === 'grid') {
-                currentView = 'fan';
-                gameArea.className = 'view-fan';
-                viewBtn.innerText = 'Ansicht: Fächer';
-            } else {
-                currentView = 'grid';
-                gameArea.className = 'view-grid';
-                viewBtn.innerText = 'Ansicht: Grid';
-            }
+            currentView = currentView === 'grid' ? 'fan' : 'grid';
+            gameArea.className = currentView === 'grid' ? 'view-grid' : 'view-fan';
             renderCards();
         });
 
-        // Wisch-Geste (Swipe Up) zum Abwerfen
-        function addSwipeLogic(card, cardIndex) {
+        function addCardLogic(card, cardIndex) {
             let startY = 0;
             let currentY = 0;
             let isSwiping = false;
 
+            // Klick/Touch Start: Karte in den Vordergrund holen
             card.addEventListener('touchstart', (e) => {
+                topZIndex++;
+                card.style.zIndex = topZIndex;
+                
                 startY = e.touches[0].clientY;
                 isSwiping = true;
-                card.style.transition = 'none'; // Direktes Feedback
+                card.style.transition = 'none'; 
             }, {passive: true});
 
             card.addEventListener('touchmove', (e) => {
@@ -288,59 +259,74 @@
                 currentY = e.touches[0].clientY;
                 let deltaY = currentY - startY;
                 
-                // Nur nach oben bewegen zulassen
+                // Nur nach oben wischen
                 if(deltaY < 0) {
-                    // Im Fächer-Modus die bestehende Rotation beibehalten
                     let baseTransform = currentView === 'fan' ? card.style.transform.split(' translateY')[0] : '';
                     card.style.transform = `${baseTransform} translateY(${deltaY}px)`;
                 }
             }, {passive: true});
 
             card.addEventListener('touchend', (e) => {
+                if(!isSwiping) return;
                 isSwiping = false;
                 let deltaY = currentY - startY;
-                card.style.transition = 'transform 0.3s cubic-bezier(0.2, 0.8, 0.2, 1), opacity 0.3s ease';
+                card.style.transition = 'transform 0.2s ease-out, opacity 0.3s ease';
 
-                if(deltaY < -80) {
-                    // Karte abgeworfen!
+                // LÄNGERER SWIPE NÖTIG (-150 statt -80)
+                if(deltaY < -150) {
                     card.classList.add('swiped-up');
                     if(navigator.vibrate) navigator.vibrate(50);
                     
                     setTimeout(() => {
                         discarded.push(hand[cardIndex]);
-                        hand.splice(cardIndex, 1); // Entferne genau diese Karte aus dem Array
+                        hand.splice(cardIndex, 1);
                         renderCards();
-                        openCategoryScreen(); // KATEGORIEN ÖFFNEN
-                    }, 300);
+                        generateCategoriesOrAction(); // Öffne Kategorien nach Abwurf
+                    }, 200);
                 } else {
-                    // Zurückspringen
-                    renderCards(); 
+                    renderCards(); // Karte schnipst zurück
                 }
             });
         }
 
-        // --- KATEGORIE LOGIK ---
-        function openCategoryScreen() {
-            // 4 zufällige Kategorien auswählen
-            let shuffled = categoriesPool.sort(() => 0.5 - Math.random());
-            let selectedCats = shuffled.slice(0, 4);
+        // --- KATEGORIE & AKTIONS LOGIK ---
+        function generateCategoriesOrAction() {
+            const catGrid = document.getElementById('cat-grid');
+            const actionView = document.getElementById('action-card-view');
+            const title = document.getElementById('overlay-title');
 
-            document.getElementById('cat-1').innerText = selectedCats[0];
-            document.getElementById('cat-2').innerText = selectedCats[1];
-            document.getElementById('cat-3').innerText = selectedCats[2];
-            document.getElementById('cat-4').innerText = selectedCats[3];
+            // 15% Chance auf eine Aktionskarte statt Kategorien
+            if(Math.random() < 0.15) {
+                catGrid.style.display = 'none';
+                actionView.style.display = 'flex';
+                title.innerText = "Aktionskarte!";
+                
+                let randomAction = actionCards[Math.floor(Math.random() * actionCards.length)];
+                actionView.innerText = randomAction;
+            } else {
+                catGrid.style.display = 'grid';
+                actionView.style.display = 'none';
+                title.innerText = "Wähle eine Kategorie";
 
+                let shuffled = categoriesPool.sort(() => 0.5 - Math.random());
+                document.getElementById('cat-1').innerText = shuffled[0];
+                document.getElementById('cat-2').innerText = shuffled[1];
+                document.getElementById('cat-3').innerText = shuffled[2];
+                document.getElementById('cat-4').innerText = shuffled[3];
+            }
             categoryOverlay.classList.add('active');
         }
 
-        // Event-Listener für die Kategorie-Buttons (schließt das Menü)
-        document.querySelectorAll('.cat-btn').forEach(btn => {
-            btn.addEventListener('click', () => {
-                categoryOverlay.classList.remove('active');
-            });
+        // Menü Buttons (Kategorien)
+        document.getElementById('btn-cats').addEventListener('click', generateCategoriesOrAction);
+        
+        document.getElementById('btn-new-cats').addEventListener('click', generateCategoriesOrAction);
+        
+        document.getElementById('btn-close-cats').addEventListener('click', () => {
+            categoryOverlay.classList.remove('active');
         });
 
-        // --- BUTTONS UNTEN ---
+        // --- MAIN BUTTONS ---
         document.getElementById('btn-undo').addEventListener('click', () => {
             if(discarded.length > 0) {
                 hand.push(discarded.pop());
@@ -351,16 +337,9 @@
         document.getElementById('btn-draw').addEventListener('click', () => {
             hand.push(getRandomLetter());
             renderCards();
-            
-            // Wenn man im Grid-View ist und mehr Karten hat, nach unten scrollen
-            if(currentView === 'grid') {
-                setTimeout(() => {
-                    gameArea.scrollTop = gameArea.scrollHeight;
-                }, 100);
-            }
+            if(currentView === 'grid') setTimeout(() => gameArea.scrollTop = gameArea.scrollHeight, 100);
         });
 
-        // Start
         initHand();
     </script>
 </body>
